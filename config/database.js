@@ -2,9 +2,9 @@ require("dotenv").config()
 
 module.exports = {
   development: {
-    username: process.env.DB_USERNAME || "root",
+    username: process.env.DB_FOLDER_USER || "root",
     password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "zmanup_invoices",
+    database: process.env.DB_NAME || "zmanup_invoice",
     host: process.env.DB_HOST || "localhost",
     port: process.env.DB_PORT || 3306,
     dialect: "mysql",

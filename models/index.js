@@ -7,17 +7,18 @@ const dbConfig = config[env]
 const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, dbConfig)
 
 // Import models
+const Accountant = require("./Accountant")(sequelize, Sequelize.DataTypes)
 const User = require("./User")(sequelize, Sequelize.DataTypes)
 const Client = require("./Client")(sequelize, Sequelize.DataTypes)
 const Service = require("./Service")(sequelize, Sequelize.DataTypes)
 const Document = require("./Document")(sequelize, Sequelize.DataTypes)
 const DocumentItem = require("./DocumentItem")(sequelize, Sequelize.DataTypes)
 const AllocationRequest = require("./AllocationRequest")(sequelize, Sequelize.DataTypes)
-const Accountant = require("./Accountant")(sequelize, Sequelize.DataTypes)
 const AuditLog = require("./AuditLog")(sequelize, Sequelize.DataTypes)
 const Expense = require("./Expense")(sequelize, Sequelize.DataTypes)
 const ResetCode = require("./ResetCode")(sequelize, Sequelize.DataTypes)
 const DeletedUser = require("./DeletedUser")(sequelize, Sequelize.DataTypes)
+
 
 // Define associations
 User.hasMany(Client, { foreignKey: "user_id", as: "clients" })

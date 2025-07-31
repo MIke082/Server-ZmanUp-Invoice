@@ -133,7 +133,9 @@ module.exports = (sequelize, DataTypes) => {
       field: 'accountant_user_id',
     },
 
-  })
+  }, {
+  tableName: "accountants" // ✅ Добавлено
+})
 
   Accountant.prototype.validatePassword = async function (password) {
     return await bcrypt.compare(password, this.passwordHash)

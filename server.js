@@ -23,7 +23,7 @@ const { createUploadsDir } = require("./utils/fileUtils")
 const startMonthlyReportCron = require("./cron/cronTasks")
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 7950
 
 // Security middleware
 app.use(helmet())
@@ -147,11 +147,11 @@ async function startServer() {
 
     // Sync database models
     if (process.env.NODE_ENV === "development") {
-      console.log("⛔ DB auto-sync is DISABLED in dev")
+      await sequelize.sync({ alter: true }) // автоматически создаёт/обновляет таблицы
+      console.log("✅ DB models synchronized (alter mode)")
     } else {
       console.log("⛔ DB auto-sync is DISABLED in prod")
     }
-
 
     // Start cron jobs
     startCronJobs()
@@ -167,6 +167,7 @@ async function startServer() {
     process.exit(1)
   }
 }
+
 
 // sequelize.sync({ alter: true }) // или { force: true } для полной пересборки
 //   .then(() => {
