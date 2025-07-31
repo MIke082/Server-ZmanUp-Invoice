@@ -1,0 +1,55 @@
+{
+  "name": "zmanup-invoice-backend",
+  "version": "1.0.0",
+  "description": "ZmanUp Invoice System Backend - Node.js + Express + MySQL",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "migrate": "npx sequelize-cli db:migrate",
+    "seed": "npx sequelize-cli db:seed:all",
+    "test": "jest"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "exceljs": "^4.4.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^6.8.1",
+    "google-auth-library": "^10.2.0",
+    "helmet": "^7.0.0",
+    "json2csv": "^6.0.0-alpha.2",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.29.4",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.6.0",
+    "node-cron": "^4.2.1",
+    "node-schedule": "^2.1.1",
+    "nodemailer": "^6.9.4",
+    "pdf-merger-js": "^5.1.2",
+    "pdfkit": "^0.17.1",
+    "puppeteer": "^21.0.1",
+    "sequelize": "^6.32.1",
+    "sharp": "^0.32.4",
+    "validator": "^13.11.0"
+  },
+  "devDependencies": {
+    "jest": "^29.6.2",
+    "nodemon": "^3.0.1",
+    "sequelize-cli": "^6.6.1",
+    "supertest": "^6.3.3"
+  },
+  "keywords": [
+    "invoice",
+    "israel",
+    "tax",
+    "nodejs",
+    "express",
+    "mysql"
+  ],
+  "author": "ZmanUp Team",
+  "license": "MIT"
+}
