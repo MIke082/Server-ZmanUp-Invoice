@@ -124,9 +124,227 @@ router.get("/:id", async (req, res) => {
   }
 })
 
+//старый код 
 // POST /documents — создание документа или зикуя
+// router.post("/", async (req, res) => {
+//   const transaction = await sequelize.transaction()
+
+//   try {
+//     const {
+//       client_id,
+//       document_type,
+//       due_date,
+//       items = [],
+//       notes,
+//       currency = "NIS",
+//       original_document_id,
+//       reason,
+//       total_amount, // ← получаем от клиента (частичный зикуй)
+//       payment_method,
+
+//     } = req.body
+
+//     const typeMap = {
+//       quote: "הצעת מחיר",
+//       work_order: "הזמנת עבודה",
+//       deal_invoice: "חשבונית עסקה",
+//       receipt: "קבלה",
+//       tax_invoice: "חשבונית מס",
+//       credit: "זיכוי",
+//       invoice: "חשבונית מס",
+//       transaction: "עסקה"
+//     }
+
+//     const mappedType = typeMap[document_type] || document_type
+//     const allowedTypes = Object.values(typeMap)
+
+//     if (!mappedType || !allowedTypes.includes(mappedType)) {
+//       return res.status(400).json({ error: "Invalid document type" })
+//     }
+
+//     let sourceItems = items
+//     let subtotal = 0
+//     let vatRate = req.user.business_type === "patur" ? 0 : 0.18
+//     let vatAmount = 0
+//     let computedTotal = 0
+//     let origDocument = null
+
+//     if (mappedType === "זיכוי" && original_document_id) {
+//       origDocument = await Document.findOne({
+//         where: { id: original_document_id },
+//         include: [
+//           { model: DocumentItem, as: "items" },
+//           { model: Client, as: "client" },
+//           { model: Document, as: "cancellations" },
+//           { model: Document, as: "originalDocument" },
+//         ],
+//       })
+
+//       if (!origDocument) return res.status(404).json({ error: "Original document not found" })
+
+//       const isPartial = total_amount !== undefined
+
+//       if (isPartial) {
+//         const parsedAmount = parseFloat(total_amount)
+
+//         sourceItems = [{
+//           description: `זיכוי: ${reason || "סכום חלקי"}`,
+//           quantity: -1,
+//           unit_price: parsedAmount,
+//         }]
+//         subtotal = -parsedAmount
+//         vatAmount = 0
+//         computedTotal = subtotal
+//       } else {
+//         sourceItems = origDocument.items.map((item) => ({
+//           description: `זיכוי: ${item.description}`,
+//           quantity: -item.quantity,
+//           unit_price: item.unit_price,
+//         }))
+//         subtotal = sourceItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+//         vatAmount = subtotal * vatRate
+//         computedTotal = subtotal + vatAmount
+//       }
+
+//     } else {
+//       if (items.length === 0) return res.status(400).json({ error: "Document must have at least one item" })
+
+//       subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+//       vatAmount = subtotal * vatRate
+//       computedTotal = subtotal + vatAmount
+//     }
+
+//     const lastDoc = await Document.findOne({
+//       where: { user_id: req.user.id },
+//       order: [["created_at", "DESC"]],
+//       transaction,
+//     })
+
+//     let nextNumber = "10001"
+
+//     if (lastDoc?.document_number) {
+//       nextNumber = String(parseInt(lastDoc.document_number) + 1).padStart(5, "0")
+//     } else if (req.user.start_receipt_number) {
+//       nextNumber = String(parseInt(req.user.start_receipt_number)).padStart(5, "0")
+//     }
+
+//     const initialStatus = mappedType === "קבלה" || mappedType === "זיכוי" ? "paid" : "draft"
+
+//     const document = await Document.create(
+//       {
+//         user_id: req.user.id,
+//         client_id: client_id || origDocument?.client_id || null,
+//         document_number: nextNumber,
+//         document_type: mappedType,
+//         due_date: due_date ? new Date(due_date) : new Date(),
+//         issue_date: new Date(),
+//         subtotal,
+//         vat_rate: vatRate,
+//         vat_amount: vatAmount,
+//         total_amount: computedTotal,
+//         currency,
+//         notes: reason || notes || null,
+//         payment_method,
+//         is_immutable: false,
+//         metadata: {},
+//         status: initialStatus,
+//         original_document_id: mappedType === "זיכוי" ? original_document_id : null,
+//       },
+//       { transaction }
+//     )
+
+//     for (let i = 0; i < sourceItems.length; i++) {
+//       const item = sourceItems[i]
+
+//       await DocumentItem.create(
+//         {
+//           document_id: document.id,
+//           service_id: item.service_id || null, // добавим поле service_id
+//           description: item.description,
+//           quantity: parseFloat(item.quantity),
+//           unit_price: parseFloat(item.unit_price),
+//           total_price: parseFloat(item.quantity) * parseFloat(item.unit_price),
+//           sort_order: i + 1,
+//         },
+//         { transaction }
+//       )
+//     }
+
+//     // Обновим start_receipt_number у пользователя, если текущий номер больше
+//     const docNumberAsInt = parseInt(nextNumber)
+
+//     if (!req.user.start_receipt_number || docNumberAsInt > req.user.start_receipt_number) {
+//       await User.update(
+//         { start_receipt_number: docNumberAsInt },
+//         { where: { id: req.user.id }, transaction }
+//       )
+//     }
+
+//     if (mappedType === "זיכוי" && origDocument) {
+//       const isPartial = total_amount !== undefined
+
+//       if (!isPartial) {
+//         origDocument.setDataValue("status", "cancelled")
+//         await origDocument.save({ transaction })
+//       }
+//     }
+
+//     const fullDoc = await Document.findByPk(document.id, {
+//       include: [
+//         { model: DocumentItem, as: "items", order: [["sort_order", "ASC"]] },
+//         { model: Client, as: "client" },
+//       ],
+//       transaction, // это важно, чтобы PDF генерировался с теми же данными
+//     })
+
+//     let pdfPath = null
+//     try {
+//       pdfPath = await generatePDF(fullDoc, req.user)
+//       await Document.update({ pdf_path: pdfPath }, {
+//         where: { id: document.id },
+//         transaction,
+//       })
+//     } catch (error) {
+//       if (!transaction.finished) await transaction.rollback()
+//       console.error("❌ Create document error:", error)
+//       res.status(500).json({ error: error.message || "Failed to create document" }) // ← обязательно error.message!
+//     }
+
+
+//     await transaction.commit()
+
+//     // await transaction.commit()
+
+//     // const fullDoc = await Document.findByPk(document.id, {
+//     //   include: [
+//     //     { model: DocumentItem, as: "items", order: [["sort_order", "ASC"]] },
+//     //     { model: Client, as: "client" },
+//     //   ],
+//     // })
+
+//     // let pdfPath = null
+//     // try {
+//     //   pdfPath = await generatePDF(fullDoc, req.user)
+//     //   await Document.update({ pdf_path: pdfPath }, { where: { id: document.id } })
+//     // } catch (pdfError) {
+//     //   console.error("❌ PDF generation failed:", pdfError)
+//     // }
+
+//     res.status(201).json({
+//       success: true,
+//       data: { ...fullDoc.toJSON(), pdf_path: pdfPath },
+//       message: "Document created and PDF generated successfully",
+//     })
+//   } catch (error) {
+//     if (!transaction.finished) await transaction.rollback()
+//     console.error("❌ Create document error:", error)
+//     res.status(500).json({ error: "Failed to create document" })
+//   }
+// })
+
+// новый код 
 router.post("/", async (req, res) => {
-  const transaction = await sequelize.transaction()
+  const transaction = await sequelize.transaction();
 
   try {
     const {
@@ -138,10 +356,9 @@ router.post("/", async (req, res) => {
       currency = "NIS",
       original_document_id,
       reason,
-      total_amount, // ← получаем от клиента (частичный зикуй)
+      total_amount,
       payment_method,
-
-    } = req.body
+    } = req.body;
 
     const typeMap = {
       quote: "הצעת מחיר",
@@ -151,22 +368,23 @@ router.post("/", async (req, res) => {
       tax_invoice: "חשבונית מס",
       credit: "זיכוי",
       invoice: "חשבונית מס",
-      transaction: "עסקה"
-    }
+      transaction: "עסקה",
+    };
 
-    const mappedType = typeMap[document_type] || document_type
-    const allowedTypes = Object.values(typeMap)
+    const mappedType = typeMap[document_type] || document_type;
+    const allowedTypes = Object.values(typeMap);
 
     if (!mappedType || !allowedTypes.includes(mappedType)) {
-      return res.status(400).json({ error: "Invalid document type" })
+      await transaction.rollback();
+      return res.status(400).json({ error: "סוג מסמך לא חוקי" });
     }
 
-    let sourceItems = items
-    let subtotal = 0
-    let vatRate = req.user.business_type === "patur" ? 0 : 0.18
-    let vatAmount = 0
-    let computedTotal = 0
-    let origDocument = null
+    let sourceItems = items;
+    let subtotal = 0;
+    let vatRate = req.user.business_type === "patur" ? 0 : 0.18;
+    let vatAmount = 0;
+    let computedTotal = 0;
+    let origDocument = null;
 
     if (mappedType === "זיכוי" && original_document_id) {
       origDocument = await Document.findOne({
@@ -177,169 +395,168 @@ router.post("/", async (req, res) => {
           { model: Document, as: "cancellations" },
           { model: Document, as: "originalDocument" },
         ],
-      })
+        transaction,
+      });
 
-      if (!origDocument) return res.status(404).json({ error: "Original document not found" })
+      if (!origDocument) {
+        await transaction.rollback();
+        return res.status(404).json({ error: "מסמך מקורי לא נמצא" });
+      }
 
-      const isPartial = total_amount !== undefined
+      const isPartial = total_amount !== undefined;
 
       if (isPartial) {
-        const parsedAmount = parseFloat(total_amount)
+        const parsedAmount = parseFloat(total_amount);
+        if (isNaN(parsedAmount) || parsedAmount <= 0) {
+          await transaction.rollback();
+          return res.status(400).json({ error: "סכום לא חוקי לזיכוי חלקי" });
+        }
 
         sourceItems = [{
           description: `זיכוי: ${reason || "סכום חלקי"}`,
           quantity: -1,
           unit_price: parsedAmount,
-        }]
-        subtotal = -parsedAmount
-        vatAmount = 0
-        computedTotal = subtotal
+        }];
+        subtotal = -parsedAmount;
+        vatAmount = 0;
+        computedTotal = subtotal;
       } else {
         sourceItems = origDocument.items.map((item) => ({
           description: `זיכוי: ${item.description}`,
           quantity: -item.quantity,
           unit_price: item.unit_price,
-        }))
-        subtotal = sourceItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
-        vatAmount = subtotal * vatRate
-        computedTotal = subtotal + vatAmount
+        }));
+        subtotal = sourceItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+        vatAmount = subtotal * vatRate;
+        computedTotal = subtotal + vatAmount;
+      }
+    } else {
+      if (!Array.isArray(items) || items.length === 0) {
+        await transaction.rollback();
+        return res.status(400).json({ error: "חייב להיות לפחות פריט אחד במסמך" });
       }
 
-    } else {
-      if (items.length === 0) return res.status(400).json({ error: "Document must have at least one item" })
-
-      subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
-      vatAmount = subtotal * vatRate
-      computedTotal = subtotal + vatAmount
+      subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+      vatAmount = subtotal * vatRate;
+      computedTotal = subtotal + vatAmount;
     }
 
     const lastDoc = await Document.findOne({
       where: { user_id: req.user.id },
       order: [["created_at", "DESC"]],
       transaction,
-    })
+    });
 
-    let nextNumber = "10001"
-
+    let nextNumber = "10001";
     if (lastDoc?.document_number) {
-      nextNumber = String(parseInt(lastDoc.document_number) + 1).padStart(5, "0")
+      nextNumber = String(parseInt(lastDoc.document_number) + 1).padStart(5, "0");
     } else if (req.user.start_receipt_number) {
-      nextNumber = String(parseInt(req.user.start_receipt_number)).padStart(5, "0")
+      nextNumber = String(parseInt(req.user.start_receipt_number)).padStart(5, "0");
     }
 
-    const initialStatus = mappedType === "קבלה" || mappedType === "זיכוי" ? "paid" : "draft"
+    const initialStatus = mappedType === "קבלה" || mappedType === "זיכוי" ? "paid" : "draft";
 
-    const document = await Document.create(
-      {
-        user_id: req.user.id,
-        client_id: client_id || origDocument?.client_id || null,
-        document_number: nextNumber,
-        document_type: mappedType,
-        due_date: due_date ? new Date(due_date) : new Date(),
-        issue_date: new Date(),
-        subtotal,
-        vat_rate: vatRate,
-        vat_amount: vatAmount,
-        total_amount: computedTotal,
-        currency,
-        notes: reason || notes || null,
-        payment_method,
-        is_immutable: false,
-        metadata: {},
-        status: initialStatus,
-        original_document_id: mappedType === "זיכוי" ? original_document_id : null,
-      },
-      { transaction }
-    )
+    const document = await Document.create({
+      user_id: req.user.id,
+      client_id: client_id || origDocument?.client_id || null,
+      document_number: nextNumber,
+      document_type: mappedType,
+      due_date: due_date ? new Date(due_date) : new Date(),
+      issue_date: new Date(),
+      subtotal,
+      vat_rate: vatRate,
+      vat_amount: vatAmount,
+      total_amount: computedTotal,
+      currency,
+      notes: reason || notes || null,
+      payment_method,
+      is_immutable: false,
+      metadata: {},
+      status: initialStatus,
+      original_document_id: mappedType === "זיכוי" ? original_document_id : null,
+    }, { transaction });
+
+    const { Service } = require("../models"); // Убедись, что Service импортирован
 
     for (let i = 0; i < sourceItems.length; i++) {
-      const item = sourceItems[i]
+      const item = sourceItems[i];
 
-      await DocumentItem.create(
-        {
-          document_id: document.id,
-          service_id: item.service_id || null, // добавим поле service_id
-          description: item.description,
-          quantity: parseFloat(item.quantity),
-          unit_price: parseFloat(item.unit_price),
-          total_price: parseFloat(item.quantity) * parseFloat(item.unit_price),
-          sort_order: i + 1,
-        },
-        { transaction }
-      )
+      // Проверка количества и цены
+      if (
+        item.quantity === undefined || item.unit_price === undefined ||
+        isNaN(item.quantity) || isNaN(item.unit_price)
+      ) {
+        await transaction.rollback();
+        return res.status(400).json({ error: `פריט #${i + 1} מכיל כמות או מחיר לא חוקיים` });
+      }
+
+      // ✅ Проверка существующего service_id, если он указан
+      if (item.service_id) {
+        const serviceExists = await Service.findByPk(item.service_id, { transaction });
+        if (!serviceExists) {
+          await transaction.rollback();
+          return res.status(400).json({
+            error: `השירות עם מזהה ${item.service_id} לא קיים במערכת (פריט #${i + 1})`,
+          });
+        }
+      }
+
+      if (req.body.test_fail_stage === "before_create") {
+        await transaction.rollback()
+        return res.status(500).json({ error: "Ошибка ДО создания документа (тест)" })
+      }
+
+      // ✅ Создание позиции
+      await DocumentItem.create({
+        document_id: document.id,
+        service_id: item.service_id || null,
+        description: item.description,
+        quantity: parseFloat(item.quantity),
+        unit_price: parseFloat(item.unit_price),
+        total_price: parseFloat(item.quantity) * parseFloat(item.unit_price),
+        sort_order: i + 1,
+      }, { transaction });
     }
 
-    // Обновим start_receipt_number у пользователя, если текущий номер больше
-    const docNumberAsInt = parseInt(nextNumber)
-
+    const docNumberAsInt = parseInt(nextNumber);
     if (!req.user.start_receipt_number || docNumberAsInt > req.user.start_receipt_number) {
       await User.update(
         { start_receipt_number: docNumberAsInt },
         { where: { id: req.user.id }, transaction }
-      )
+      );
     }
 
-    if (mappedType === "זיכוי" && origDocument) {
-      const isPartial = total_amount !== undefined
-
-      if (!isPartial) {
-        origDocument.setDataValue("status", "cancelled")
-        await origDocument.save({ transaction })
-      }
-    }
-
+    // Получаем все данные для PDF
     const fullDoc = await Document.findByPk(document.id, {
       include: [
         { model: DocumentItem, as: "items", order: [["sort_order", "ASC"]] },
         { model: Client, as: "client" },
       ],
-      transaction, // это важно, чтобы PDF генерировался с теми же данными
-    })
+      transaction,
+    });
 
-    let pdfPath = null
-    try {
-      pdfPath = await generatePDF(fullDoc, req.user)
-      await Document.update({ pdf_path: pdfPath }, {
-        where: { id: document.id },
-        transaction,
-      })
-    } catch (error) {
-      if (!transaction.finished) await transaction.rollback()
-      console.error("❌ Create document error:", error)
-      res.status(500).json({ error: error.message || "Failed to create document" }) // ← обязательно error.message!
-    }
+    const pdfPath = await generatePDF(fullDoc, req.user);
 
+    await Document.update({ pdf_path: pdfPath }, {
+      where: { id: document.id },
+      transaction,
+    });
 
-    await transaction.commit()
-
-    // await transaction.commit()
-
-    // const fullDoc = await Document.findByPk(document.id, {
-    //   include: [
-    //     { model: DocumentItem, as: "items", order: [["sort_order", "ASC"]] },
-    //     { model: Client, as: "client" },
-    //   ],
-    // })
-
-    // let pdfPath = null
-    // try {
-    //   pdfPath = await generatePDF(fullDoc, req.user)
-    //   await Document.update({ pdf_path: pdfPath }, { where: { id: document.id } })
-    // } catch (pdfError) {
-    //   console.error("❌ PDF generation failed:", pdfError)
-    // }
+    await transaction.commit();
 
     res.status(201).json({
       success: true,
       data: { ...fullDoc.toJSON(), pdf_path: pdfPath },
-      message: "Document created and PDF generated successfully",
-    })
+      message: "המסמך נוצר בהצלחה עם PDF",
+    });
+
   } catch (error) {
-    if (!transaction.finished) await transaction.rollback()
-    console.error("❌ Create document error:", error)
-    res.status(500).json({ error: "Failed to create document" })
+    if (!transaction.finished) await transaction.rollback();
+    console.error("❌ שגיאה ביצירת מסמך:", error);
+    res.status(500).json({ error: error.message || "שגיאה כללית ביצירת מסמך" });
   }
-})
+});
+
 
 router.put("/:id/status", async (req, res) => {
   try {
