@@ -124,7 +124,6 @@ router.get("/:id", async (req, res) => {
   }
 })
 
-//старый код 
 // POST /documents — создание документа или зикуя
 // router.post("/", async (req, res) => {
 //   const transaction = await sequelize.transaction()
@@ -342,7 +341,7 @@ router.get("/:id", async (req, res) => {
 //   }
 // })
 
-// новый код 
+// новый код
 router.post("/", async (req, res) => {
   const transaction = await sequelize.transaction();
 
@@ -556,7 +555,6 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: error.message || "שגיאה כללית ביצירת מסמך" });
   }
 });
-
 
 router.put("/:id/status", async (req, res) => {
   try {
